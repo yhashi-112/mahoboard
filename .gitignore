@@ -1,0 +1,6 @@
+.venv/
+.env
+mahoboard.db
+__pycache__/
+.DS_Store
+.streamlit/
