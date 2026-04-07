@@ -1,0 +1,14 @@
+{
+  "admin": {
+    "name": "管理者",
+    "role": "admin",
+    "password_hash": "443f4d95f11372eaf7e31cb3d81aee32668a25b75283098282df255f405afdfd",
+    "registered_at": "2026-04-07 15:45:26"
+  },
+  "Tatsumi": {
+    "name": "辰見先生",
+    "role": "teacher",
+    "password_hash": "bd70bfd0778ef37a5729a06a3c3813f554c5429c05209a1059442e844ab7770f",
+    "registered_at": "2026-04-07 15:45:26"
+  }
+}
