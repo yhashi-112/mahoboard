@@ -1,6 +1,10 @@
-.venv/
 .env
-mahoboard.db
+.streamlit/secrets.toml
+users.json
+teachers.json
+logs/
+*.db
+*.csv
 __pycache__/
-.DS_Store
-.streamlit/
+.venv/
+*.pyc

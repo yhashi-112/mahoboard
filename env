@@ -1,0 +1,8 @@
+# API Keys（実際のキーに置き換えてください）
+OPENAI_API_KEY=your-openai-api-key-here
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+
+# デフォルトAPI設定
+DEFAULT_API=Claude
+DEFAULT_MODEL_OPENAI=gpt-4o
+DEFAULT_MODEL_CLAUDE=claude-sonnet-4-20250514
