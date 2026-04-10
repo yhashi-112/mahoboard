@@ -11,7 +11,6 @@ import glob
 import pandas as pd
 from io import BytesIO
 from collections import Counter
-from supabase import create_client, Client
 
 # 環境変数の読み込み
 load_dotenv()
@@ -22,15 +21,6 @@ st.set_page_config(
     page_icon="👨‍🏫",
     layout="wide"
 )
-
-# Supabaseクライアント初期化
-@st.cache_resource
-def init_supabase() -> Client:
-    url = os.getenv('SUPABASE_URL') or st.secrets.get('SUPABASE_URL', '')
-    key = os.getenv('SUPABASE_KEY') or st.secrets.get('SUPABASE_KEY', '')
-    return create_client(url, key)
-
-supabase = init_supabase()
 
 # APIクライアントの初期化
 @st.cache_resource
@@ -80,23 +70,18 @@ def save_knowledge_base(kb):
     with open('knowledge_base.json', 'w', encoding='utf-8') as f:
         json.dump(kb, f, ensure_ascii=False, indent=2)
 
-# ログファイルの読み込み（Supabase対応）
+# ログファイルの読み込み
 def load_logs():
-    try:
-        result = supabase.table('logs').select('*').order('timestamp', desc=True).execute()
-        logs = []
-        for row in result.data:
-            # ai_detected_categoriesをJSON文字列からリストに変換
-            if isinstance(row.get('ai_detected_categories'), str):
-                try:
-                    row['ai_detected_categories'] = json.loads(row['ai_detected_categories'])
-                except:
-                    row['ai_detected_categories'] = []
-            logs.append(row)
-        return logs
-    except Exception as e:
-        print(f"ログ読み込みエラー: {e}")
-        return []
+    log_files = glob.glob("logs/*.json")
+    logs = []
+    for file in log_files:
+        try:
+            with open(file, 'r', encoding='utf-8') as f:
+                log = json.load(f)
+                logs.append(log)
+        except:
+            continue
+    return sorted(logs, key=lambda x: x.get('timestamp', ''), reverse=True)
 
 # ログをDataFrameに変換
 def logs_to_dataframe(logs):
@@ -324,36 +309,32 @@ def change_password(teacher_id, old_password, new_password):
     return True, "パスワードを変更しました"
 
 # ===== 認証UI =====
+TEACHER_PASSWORD = os.getenv('TEACHER_PASSWORD') or st.secrets.get('TEACHER_PASSWORD', '')
+
 if "teacher_authenticated" not in st.session_state:
     st.session_state.teacher_authenticated = False
 if "teacher_info" not in st.session_state:
-    st.session_state.teacher_info = {}
+    st.session_state.teacher_info = {"name": "教員", "role": "admin"}
 
 if not st.session_state.teacher_authenticated:
     st.markdown("""
     <div style='text-align: center; padding: 2rem 0;'>
         <h1 style='font-size: 2.5rem;'>👨‍🏫 魔法の黒板 - 教員用</h1>
-        <p style='font-size: 1.2rem; color: #666;'>教員IDとパスワードでログインしてください</p>
+        <p style='font-size: 1.2rem; color: #666;'>パスワードでログインしてください</p>
     </div>
     """, unsafe_allow_html=True)
     
     with st.form(key="teacher_login_form"):
-        t_id = st.text_input("教員ID", placeholder="例：admin")
         t_pw = st.text_input("パスワード", type="password")
         submitted = st.form_submit_button("ログイン", type="primary", use_container_width=True)
     
     if submitted:
-        if t_id and t_pw:
-            ok, result = login_teacher(t_id, t_pw)
-            if ok:
-                st.session_state.teacher_authenticated = True
-                st.session_state.teacher_info = result
-                st.session_state.teacher_id = t_id
-                st.rerun()
-            else:
-                st.error(f"❌ {result}")
+        if t_pw == TEACHER_PASSWORD:
+            st.session_state.teacher_authenticated = True
+            st.session_state.teacher_info = {"name": "教員", "role": "admin"}
+            st.rerun()
         else:
-            st.warning("IDとパスワードを入力してください")
+            st.error("❌ パスワードが正しくありません")
     st.stop()
 
 # ログイン済み
