@@ -7,6 +7,7 @@ import google.generativeai as genai
 import json
 from datetime import datetime
 import hashlib
+from supabase import create_client, Client
 
 # 環境変数の読み込み
 load_dotenv()
@@ -554,48 +555,49 @@ def parse_problem(problem_text):
 # メインUI
 # タイトルはタブ内で表示するため、ここでは表示しない
 
-# ===== ユーザー管理関数 =====
+# ===== ユーザー管理関数 (Supabase対応) =====
 
-USERS_FILE = "users.json"
+@st.cache_resource
+def init_supabase() -> Client:
+    url = os.getenv('SUPABASE_URL') or st.secrets.get('SUPABASE_URL', '')
+    key = os.getenv('SUPABASE_KEY') or st.secrets.get('SUPABASE_KEY', '')
+    return create_client(url, key)
+
+supabase = init_supabase()
 
 def hash_password(password):
     """パスワードをSHA-256でハッシュ化"""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
-def load_users():
-    """ユーザー一覧を読み込む"""
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-def save_users(users):
-    """ユーザー一覧を保存"""
-    with open(USERS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
 def register_user(student_id, nickname, password):
     """新規ユーザー登録。成功時True、学籍番号重複時Falseを返す"""
-    users = load_users()
-    if student_id in users:
-        return False, "この学籍番号はすでに登録されています"
-    users[student_id] = {
-        "nickname": nickname,
-        "password_hash": hash_password(password),
-        "registered_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    save_users(users)
-    return True, "登録成功"
+    try:
+        # 既存ユーザー確認
+        existing = supabase.table('users').select('student_id').eq('student_id', student_id).execute()
+        if existing.data:
+            return False, "この学籍番号はすでに登録されています"
+        # 新規登録
+        supabase.table('users').insert({
+            "student_id": student_id,
+            "nickname": nickname,
+            "password_hash": hash_password(password),
+        }).execute()
+        return True, "登録成功"
+    except Exception as e:
+        return False, f"登録エラー: {e}"
 
 def login_user(student_id, password):
     """ログイン認証。成功時(True, nickname)、失敗時(False, エラーメッセージ)を返す"""
-    users = load_users()
-    if student_id not in users:
-        return False, "学籍番号が見つかりません。初めての方は「新規登録」タブから登録してください"
-    if users[student_id]["password_hash"] != hash_password(password):
-        return False, "パスワードが正しくありません"
-    return True, users[student_id]["nickname"]
+    try:
+        result = supabase.table('users').select('nickname, password_hash').eq('student_id', student_id).execute()
+        if not result.data:
+            return False, "学籍番号が見つかりません。初めての方は「新規登録」タブから登録してください"
+        user = result.data[0]
+        if user['password_hash'] != hash_password(password):
+            return False, "パスワードが正しくありません"
+        return True, user['nickname']
+    except Exception as e:
+        return False, f"ログインエラー: {e}"
 
 # ===== 認証UI =====
 
