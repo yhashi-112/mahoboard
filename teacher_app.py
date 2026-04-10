@@ -11,6 +11,7 @@ import glob
 import pandas as pd
 from io import BytesIO
 from collections import Counter
+from supabase import create_client, Client
 
 # 環境変数の読み込み
 load_dotenv()
@@ -21,6 +22,15 @@ st.set_page_config(
     page_icon="👨‍🏫",
     layout="wide"
 )
+
+# Supabaseクライアント初期化
+@st.cache_resource
+def init_supabase() -> Client:
+    url = os.getenv('SUPABASE_URL') or st.secrets.get('SUPABASE_URL', '')
+    key = os.getenv('SUPABASE_KEY') or st.secrets.get('SUPABASE_KEY', '')
+    return create_client(url, key)
+
+supabase = init_supabase()
 
 # APIクライアントの初期化
 @st.cache_resource
@@ -70,18 +80,23 @@ def save_knowledge_base(kb):
     with open('knowledge_base.json', 'w', encoding='utf-8') as f:
         json.dump(kb, f, ensure_ascii=False, indent=2)
 
-# ログファイルの読み込み
+# ログファイルの読み込み（Supabase対応）
 def load_logs():
-    log_files = glob.glob("logs/*.json")
-    logs = []
-    for file in log_files:
-        try:
-            with open(file, 'r', encoding='utf-8') as f:
-                log = json.load(f)
-                logs.append(log)
-        except:
-            continue
-    return sorted(logs, key=lambda x: x.get('timestamp', ''), reverse=True)
+    try:
+        result = supabase.table('logs').select('*').order('timestamp', desc=True).execute()
+        logs = []
+        for row in result.data:
+            # ai_detected_categoriesをJSON文字列からリストに変換
+            if isinstance(row.get('ai_detected_categories'), str):
+                try:
+                    row['ai_detected_categories'] = json.loads(row['ai_detected_categories'])
+                except:
+                    row['ai_detected_categories'] = []
+            logs.append(row)
+        return logs
+    except Exception as e:
+        print(f"ログ読み込みエラー: {e}")
+        return []
 
 # ログをDataFrameに変換
 def logs_to_dataframe(logs):
