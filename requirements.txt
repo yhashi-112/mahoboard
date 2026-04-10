@@ -4,3 +4,4 @@ anthropic
 google-generativeai
 python-dotenv
 supabase
+openpyxl
