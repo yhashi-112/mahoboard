@@ -616,7 +616,10 @@ with tab4:
         stumbling_points = analyze_stumbling_points(logs)
         if stumbling_points:
             sp_df = pd.DataFrame(stumbling_points, columns=['カテゴリー', '質問数'])
-            st.dataframe(sp_df, use_container_width=True)
+            st.dataframe(
+                    sp_df.style.background_gradient(subset=['質問数'], cmap='YlOrRd'),
+                    use_container_width=True
+             )
             st.write("### 特に注意が必要なカテゴリー（Top 3）")
             for i, (category, count) in enumerate(stumbling_points[:3], 1):
                 st.warning(f"**{i}位**: {category} - {count}件の質問")
