@@ -3,3 +3,4 @@ openai
 anthropic
 google-generativeai
 python-dotenv
+supabase
