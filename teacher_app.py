@@ -309,32 +309,65 @@ def change_password(teacher_id, old_password, new_password):
     return True, "パスワードを変更しました"
 
 # ===== 認証UI =====
-TEACHER_PASSWORD = os.getenv('TEACHER_PASSWORD') or st.secrets.get('TEACHER_PASSWORD', '')
+
+def load_teachers():
+    try:
+        with open(TEACHERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def hash_teacher_password(password):
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+def login_teacher(teacher_id, password):
+    teachers = load_teachers()
+    if teacher_id not in teachers:
+        return False, "IDが見つかりません"
+    if teachers[teacher_id]["password_hash"] != hash_teacher_password(password):
+        return False, "パスワードが正しくありません"
+    return True, teachers[teacher_id]
 
 if "teacher_authenticated" not in st.session_state:
     st.session_state.teacher_authenticated = False
 if "teacher_info" not in st.session_state:
-    st.session_state.teacher_info = {"name": "教員", "role": "admin"}
+    st.session_state.teacher_info = {}
+
+# クエリパラメータでログイン状態を復元
+params = st.query_params
+if not st.session_state.teacher_authenticated and params.get("auth") == "ok":
+    st.session_state.teacher_authenticated = True
+    st.session_state.teacher_info = {"name": params.get("name", "教員"), "role": params.get("role", "teacher")}
 
 if not st.session_state.teacher_authenticated:
     st.markdown("""
     <div style='text-align: center; padding: 2rem 0;'>
         <h1 style='font-size: 2.5rem;'>👨‍🏫 魔法の黒板 - 教員用</h1>
-        <p style='font-size: 1.2rem; color: #666;'>パスワードでログインしてください</p>
+        <p style='font-size: 1.2rem; color: #666;'>教員IDとパスワードでログインしてください</p>
     </div>
     """, unsafe_allow_html=True)
     
     with st.form(key="teacher_login_form"):
+        t_id = st.text_input("教員ID", placeholder="例：admin")
         t_pw = st.text_input("パスワード", type="password")
         submitted = st.form_submit_button("ログイン", type="primary", use_container_width=True)
     
     if submitted:
-        if t_pw == TEACHER_PASSWORD:
-            st.session_state.teacher_authenticated = True
-            st.session_state.teacher_info = {"name": "教員", "role": "admin"}
-            st.rerun()
+        if t_id and t_pw:
+            ok, result = login_teacher(t_id, t_pw)
+            if ok:
+                st.session_state.teacher_authenticated = True
+                st.session_state.teacher_info = result
+                st.session_state.teacher_id = t_id
+                # クエリパラメータにログイン情報を保存（リロード対策）
+                st.query_params["auth"] = "ok"
+                st.query_params["name"] = result.get("name", "教員")
+                st.query_params["role"] = result.get("role", "teacher")
+                st.rerun()
+            else:
+                st.error(f"❌ {result}")
         else:
-            st.error("❌ パスワードが正しくありません")
+            st.warning("IDとパスワードを入力してください")
     st.stop()
 
 # ログイン済み
