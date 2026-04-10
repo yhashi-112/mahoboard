@@ -238,15 +238,11 @@ def detect_categories_ai(question, available_categories):
 # ログ保存関数
 def save_log(nickname, mode, question, answer, category=None, difficulty=None, num_problems=None, is_blocked=False, block_reason=None, ai_detected_categories=None):
     """
-    学生とAIのやり取りをログに記録
-    is_blocked: ブロックされた場合True
-    block_reason: ブロック理由（NGワードのカテゴリ）
-    ai_detected_categories: AIが判定したカテゴリーのリスト
+    学生とAIのやり取りをSupabaseのlogsテーブルに記録
     """
-    log_dir = "logs"
-    os.makedirs(log_dir, exist_ok=True)
-    
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    category_mismatch = False if not ai_detected_categories or not category else (category not in ai_detected_categories and category != "すべて")
+    
     log_data = {
         "timestamp": timestamp,
         "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -254,20 +250,21 @@ def save_log(nickname, mode, question, answer, category=None, difficulty=None, n
         "mode": mode,
         "api_provider": DEFAULT_API,
         "model": DEFAULT_MODEL_OPENAI if DEFAULT_API == "OpenAI" else DEFAULT_MODEL_CLAUDE,
-        "student_selected_category": category,  # 学生が選択したカテゴリー
-        "ai_detected_categories": ai_detected_categories if ai_detected_categories else [],  # AIが判定したカテゴリー
-        "category_mismatch": False if not ai_detected_categories or not category else (category not in ai_detected_categories and category != "すべて"),  # カテゴリー不一致フラグ
-        "difficulty": difficulty,
-        "num_problems": num_problems,
-        "question": question,
-        "answer": answer,
+        "student_selected_category": category or "",
+        "ai_detected_categories": json.dumps(ai_detected_categories if ai_detected_categories else [], ensure_ascii=False),
+        "category_mismatch": category_mismatch,
+        "difficulty": difficulty or "",
+        "num_problems": str(num_problems) if num_problems else "",
+        "question": question or "",
+        "answer": answer or "",
         "is_blocked": is_blocked,
-        "block_reason": block_reason if block_reason else ""
+        "block_reason": block_reason or ""
     }
     
-    filename = f"{log_dir}/{nickname}_{timestamp}.json"
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(log_data, f, ensure_ascii=False, indent=2)
+    try:
+        supabase.table('logs').insert(log_data).execute()
+    except Exception as e:
+        print(f"ログ保存エラー: {e}")
 
 # 質問応答関数
 def answer_question(question, category):
