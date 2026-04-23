@@ -155,7 +155,11 @@ categories = load_categories()
 def load_knowledge_base():
     try:
         with open('knowledge_base_complete_137items.json', 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+            # 辞書形式の場合はqa_pairsリストを返す
+            if isinstance(data, dict):
+                return data.get('qa_pairs', [])
+            return data
     except FileNotFoundError:
         return []
 
