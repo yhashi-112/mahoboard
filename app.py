@@ -154,7 +154,7 @@ categories = load_categories()
 @st.cache_data
 def load_knowledge_base():
     try:
-        with open('knowledge_base.json', 'r', encoding='utf-8') as f:
+        with open('knowledge_base_complete_137items.json', 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
         return []
