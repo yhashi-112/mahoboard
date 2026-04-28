@@ -5,7 +5,9 @@ from openai import OpenAI
 from anthropic import Anthropic
 import google.generativeai as genai
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+JST = timezone(timedelta(hours=9))
 import hashlib
 from supabase import create_client, Client
 
@@ -246,12 +248,13 @@ def save_log(nickname, mode, question, answer, category=None, difficulty=None, n
     """
     学生とAIのやり取りをSupabaseのlogsテーブルに記録
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now_jst = datetime.now(JST)
+    timestamp = now_jst.strftime("%Y%m%d_%H%M%S")
     category_mismatch = False if not ai_detected_categories or not category else (category not in ai_detected_categories and category != "すべて")
     
     log_data = {
         "timestamp": timestamp,
-        "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "datetime": now_jst.strftime("%Y-%m-%d %H:%M:%S"),
         "nickname": nickname,
         "mode": mode,
         "api_provider": DEFAULT_API,
