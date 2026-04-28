@@ -337,7 +337,7 @@ with st.sidebar:
                             st.rerun()
 
 st.title("👨‍🏫 魔法の黒板 - 教員用インターフェース")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 ログ閲覧・集計", "📂 カテゴリー管理", "📚 知識ベース管理", "🎯 分析ダッシュボード", "📋 システム概要"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 ログ閲覧・集計", "📂 カテゴリー管理", "📚 知識ベース管理", "🎯 分析ダッシュボード", "📋 システム概要", "👥 学生管理"])
 
 # タブ1: ログ閲覧・集計
 with tab1:
@@ -616,10 +616,7 @@ with tab4:
         stumbling_points = analyze_stumbling_points(logs)
         if stumbling_points:
             sp_df = pd.DataFrame(stumbling_points, columns=['カテゴリー', '質問数'])
-            st.dataframe(
-                    sp_df.style.background_gradient(subset=['質問数'], cmap='YlOrRd'),
-                    use_container_width=True
-             )
+            st.dataframe(sp_df, use_container_width=True)
             st.write("### 特に注意が必要なカテゴリー（Top 3）")
             for i, (category, count) in enumerate(stumbling_points[:3], 1):
                 st.warning(f"**{i}位**: {category} - {count}件の質問")
@@ -666,3 +663,74 @@ st.sidebar.info(f"""
 - API: {api_provider}
 - モデル: {model}
 """)
+
+# タブ6: 学生管理
+with tab6:
+    st.header("👥 学生管理")
+    st.info("警告回数の確認・リセット、アカウントのBAN/解除ができます。")
+
+    try:
+        users_result = supabase.table('users').select('student_id, nickname, warning_count, is_banned').order('warning_count', desc=True).execute()
+        users_data = users_result.data
+    except Exception as e:
+        st.error(f"学生データ取得エラー: {e}")
+        users_data = []
+
+    if not users_data:
+        st.info("登録済み学生がいません")
+    else:
+        # サマリー
+        col_s1, col_s2, col_s3 = st.columns(3)
+        total = len(users_data)
+        banned = sum(1 for u in users_data if u.get('is_banned', False))
+        warned = sum(1 for u in users_data if (u.get('warning_count') or 0) >= 1)
+        col_s1.metric("登録学生数", f"{total}名")
+        col_s2.metric("警告あり", f"{warned}名")
+        col_s3.metric("使用停止中", f"{banned}名")
+
+        st.markdown("---")
+        st.subheader("学生一覧")
+
+        for u in users_data:
+            wc = u.get('warning_count') or 0
+            is_banned = u.get('is_banned', False)
+
+            # 警告レベルに応じた表示色
+            if is_banned:
+                label = f"🚫 {u['nickname']}（{u['student_id']}）　警告: {wc}回　**【使用停止中】**"
+            elif wc >= 4:
+                label = f"⛔ {u['nickname']}（{u['student_id']}）　警告: {wc}回"
+            elif wc >= 3:
+                label = f"⚠️ {u['nickname']}（{u['student_id']}）　警告: {wc}回"
+            elif wc >= 1:
+                label = f"📢 {u['nickname']}（{u['student_id']}）　警告: {wc}回"
+            else:
+                label = f"✅ {u['nickname']}（{u['student_id']}）　警告: {wc}回"
+
+            with st.expander(label):
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    if st.button("🔄 警告リセット", key=f"reset_{u['student_id']}"):
+                        try:
+                            supabase.table('users').update({'warning_count': 0}).eq('student_id', u['student_id']).execute()
+                            st.success("✅ 警告カウントをリセットしました")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"エラー: {e}")
+                with col_b:
+                    if is_banned:
+                        if st.button("✅ BAN解除", key=f"unban_{u['student_id']}"):
+                            try:
+                                supabase.table('users').update({'is_banned': False, 'warning_count': 0}).eq('student_id', u['student_id']).execute()
+                                st.success("✅ BAN解除・警告リセットしました")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"エラー: {e}")
+                    else:
+                        if st.button("🚫 BAN", key=f"ban_{u['student_id']}"):
+                            try:
+                                supabase.table('users').update({'is_banned': True}).eq('student_id', u['student_id']).execute()
+                                st.success("✅ 使用停止にしました")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"エラー: {e}")
