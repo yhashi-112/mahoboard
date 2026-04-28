@@ -593,17 +593,66 @@ def register_user(student_id, nickname, password):
         return False, f"登録エラー: {e}"
 
 def login_user(student_id, password):
-    """ログイン認証。成功時(True, nickname)、失敗時(False, エラーメッセージ)を返す"""
+    """ログイン認証。成功時(True, nickname, warning_count)、失敗時(False, エラーメッセージ, 0)を返す"""
     try:
-        result = supabase.table('users').select('nickname, password_hash').eq('student_id', student_id).execute()
+        result = supabase.table('users').select('nickname, password_hash, warning_count, is_banned').eq('student_id', student_id).execute()
         if not result.data:
-            return False, "学籍番号が見つかりません。初めての方は「新規登録」タブから登録してください"
+            return False, "学籍番号が見つかりません。初めての方は「新規登録」タブから登録してください", 0
         user = result.data[0]
         if user['password_hash'] != hash_password(password):
-            return False, "パスワードが正しくありません"
-        return True, user['nickname']
+            return False, "パスワードが正しくありません", 0
+        if user.get('is_banned', False):
+            return False, "このアカウントは使用停止となっています。担当教員にお問い合わせください。", 0
+        warning_count = user.get('warning_count', 0) or 0
+        return True, user['nickname'], warning_count
     except Exception as e:
-        return False, f"ログインエラー: {e}"
+        return False, f"ログインエラー: {e}", 0
+
+def increment_warning(student_id):
+    """警告カウントを+1して新しい値を返す"""
+    try:
+        result = supabase.table('users').select('warning_count').eq('student_id', student_id).execute()
+        current = result.data[0].get('warning_count', 0) or 0
+        new_count = current + 1
+        supabase.table('users').update({'warning_count': new_count}).eq('student_id', student_id).execute()
+        # 5回目で自動BAN
+        if new_count >= 5:
+            supabase.table('users').update({'is_banned': True}).eq('student_id', student_id).execute()
+        return new_count
+    except Exception as e:
+        print(f"警告カウント更新エラー: {e}")
+        return 0
+
+def get_stepped_warning_message(warning_count, block_category):
+    """警告回数に応じた段階的メッセージを返す"""
+    base = get_warning_message(block_category)
+    if warning_count >= 5:
+        return base + """
+
+🚫 **アカウントが停止されました**
+
+不適切な使用が繰り返されたため、このアカウントの使用を停止しました。
+担当教員（西橋先生）にお問い合わせください。
+        """
+    elif warning_count == 4:
+        return base + """
+
+⛔ **最終警告（4/5回）**
+
+これ以上不適切な使用が続いた場合、**次回でアカウントが自動停止**されます。
+薬学の学習目的のみにご使用ください。
+        """
+    elif warning_count == 3:
+        return base + """
+
+⚠️ **使用制限の案内（3/5回）**
+
+不適切な使用が複数回確認されています。
+このシステムは**薬学教育専用**です。
+不適切な使用が続いた場合、アカウントが停止される場合があります。
+        """
+    else:
+        return base
 
 # ===== 認証UI =====
 
@@ -645,6 +694,8 @@ if "nickname" not in st.session_state:
     st.session_state.nickname = ""
 if "student_id" not in st.session_state:
     st.session_state.student_id = ""
+if "warning_count" not in st.session_state:
+    st.session_state.warning_count = 0
 
 # 未ログインの場合は認証画面を表示
 if not st.session_state.authenticated:
@@ -658,11 +709,12 @@ if not st.session_state.authenticated:
             submitted = st.form_submit_button("ログイン", type="primary", use_container_width=True)
         if submitted:
             if login_id and login_pw:
-                ok, result = login_user(login_id, login_pw)
+                ok, result, warning_count = login_user(login_id, login_pw)
                 if ok:
                     st.session_state.authenticated = True
                     st.session_state.nickname = result
                     st.session_state.student_id = login_id
+                    st.session_state.warning_count = warning_count
                     st.rerun()
                 else:
                     st.error(f"❌ {result}")
@@ -736,16 +788,25 @@ with tab1:
             block_category, detected_word = check_inappropriate_content(question)
             
             if block_category:
-                # 不適切な内容が検出された場合
-                warning_msg = get_warning_message(block_category)
+                # 警告カウントを増加
+                new_count = increment_warning(st.session_state.student_id)
+                st.session_state.warning_count = new_count
+                # 段階別メッセージ表示
+                warning_msg = get_stepped_warning_message(new_count, block_category)
                 st.error(warning_msg)
-                
+                # 5回目以降は強制ログアウト
+                if new_count >= 5:
+                    st.session_state.authenticated = False
+                    st.session_state.nickname = ""
+                    st.session_state.student_id = ""
+                    st.session_state.warning_count = 0
+                    st.rerun()
                 # ブロックされたことをログに記録
                 save_log(
-                    nickname, 
-                    "質問応答（ブロック）", 
-                    question, 
-                    warning_msg, 
+                    nickname,
+                    "質問応答（ブロック）",
+                    question,
+                    warning_msg,
                     category=category,
                     is_blocked=True,
                     block_reason=block_category
@@ -832,15 +893,24 @@ with tab2:
             block_category, detected_word = check_inappropriate_content(topic)
             
             if block_category:
-                # 不適切な内容が検出された場合
-                warning_msg = get_warning_message(block_category)
+                # 警告カウントを増加
+                new_count = increment_warning(st.session_state.student_id)
+                st.session_state.warning_count = new_count
+                # 段階別メッセージ表示
+                warning_msg = get_stepped_warning_message(new_count, block_category)
                 st.error(warning_msg)
-                
+                # 5回目以降は強制ログアウト
+                if new_count >= 5:
+                    st.session_state.authenticated = False
+                    st.session_state.nickname = ""
+                    st.session_state.student_id = ""
+                    st.session_state.warning_count = 0
+                    st.rerun()
                 # ブロックされたことをログに記録
                 save_log(
-                    nickname, 
-                    "練習問題（ブロック）", 
-                    topic, 
+                    nickname,
+                    "練習問題（ブロック）",
+                    topic,
                     warning_msg,
                     difficulty=difficulty,
                     num_problems=num_problems,
