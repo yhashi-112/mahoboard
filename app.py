@@ -578,18 +578,22 @@ def hash_password(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def register_user(student_id, nickname, password):
-    """新規ユーザー登録。成功時True、学籍番号重複時Falseを返す"""
+    """新規ユーザー登録。is_approved=TRUEの学籍番号のみ登録可能"""
     try:
-        # 既存ユーザー確認
-        existing = supabase.table('users').select('student_id').eq('student_id', student_id).execute()
-        if existing.data:
+        # ホワイトリスト確認（is_approved=TRUEの学生のみ登録可）
+        result = supabase.table('users').select('student_id, is_approved, password_hash').eq('student_id', student_id).execute()
+        if not result.data:
+            return False, "この学籍番号は登録対象外です。担当教員にお問い合わせください"
+        user = result.data[0]
+        if not user.get('is_approved', False):
+            return False, "この学籍番号は登録対象外です。担当教員にお問い合わせください"
+        if user.get('password_hash'):
             return False, "この学籍番号はすでに登録されています"
-        # 新規登録
-        supabase.table('users').insert({
-            "student_id": student_id,
+        # ニックネームとパスワードを更新
+        supabase.table('users').update({
             "nickname": nickname,
             "password_hash": hash_password(password),
-        }).execute()
+        }).eq('student_id', student_id).execute()
         return True, "登録成功"
     except Exception as e:
         return False, f"登録エラー: {e}"
