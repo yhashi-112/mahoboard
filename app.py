@@ -101,7 +101,7 @@ def get_warning_message(category):
 - 医薬品情報評価
 - 患者情報管理
 
-**薬学情報学に関する質問**をお願いします。
+**医薬品情報学に関する質問**をお願いします。
         """
     }
     return messages.get(category, "不適切な内容が検出されました。")
