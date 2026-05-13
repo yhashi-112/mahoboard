@@ -49,23 +49,26 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # JavaScriptで右下のバッジを強制削除(Safari対策)
+import streamlit.components.v1 as components
+
 hide_badge_js = """
 <script>
 (function() {
     function removeBadges() {
-        document.querySelectorAll('[data-testid="appCreatorAvatar"]').forEach(el => el.remove());
-        document.querySelectorAll('a[href*="streamlit.io"]').forEach(el => el.remove());
-        document.querySelectorAll('a[href*="share.streamlit.io"]').forEach(el => el.remove());
-        document.querySelectorAll('[class*="viewerBadge"]').forEach(el => el.remove());
-        document.querySelectorAll('[class*="profileContainer"]').forEach(el => el.remove());
-        document.querySelectorAll('[class*="profilePreview"]').forEach(el => el.remove());
+        var doc = window.parent.document;
+        doc.querySelectorAll('[data-testid="appCreatorAvatar"]').forEach(el => el.remove());
+        doc.querySelectorAll('a[href*="streamlit.io"]').forEach(el => el.remove());
+        doc.querySelectorAll('a[href*="share.streamlit.io"]').forEach(el => el.remove());
+        doc.querySelectorAll('[class*="viewerBadge"]').forEach(el => el.remove());
+        doc.querySelectorAll('[class*="profileContainer"]').forEach(el => el.remove());
+        doc.querySelectorAll('[class*="profilePreview"]').forEach(el => el.remove());
     }
     removeBadges();
-    setInterval(removeBadges, 1000);
+    setInterval(removeBadges, 500);
 })();
 </script>
 """
-st.markdown(hide_badge_js, unsafe_allow_html=True)
+components.html(hide_badge_js, height=0)
 # NGワード設定
 BLOCK_WORDS_STRICT = [
     "氏名", "名前", "本名", "住所", "電話番号", "メールアドレス",
