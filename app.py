@@ -35,7 +35,16 @@ hide_streamlit_style = """
     .styles_viewerBadge__1yB5_ {display: none !important;}
     .viewerBadge_link__1S137 {display: none !important;}
     .viewerBadge_text__1JaDK {display: none !important;}
-    iframe[title="streamlitApp"] {display: none !important;}
+    /* GitHubアバターとStreamlitバッジを確実に非表示 */
+    [data-testid="appCreatorAvatar"] {display: none !important;}
+    a[href="https://streamlit.io/cloud"] {display: none !important;}
+    a[href*="streamlit.io/cloud"] {display: none !important;}
+    a[href*="share.streamlit.io"] {display: none !important;}
+    a[href*="streamlit.io/user/"] {display: none !important;}
+    [class*="viewerBadge"] {display: none !important;}
+    [class*="profileContainer"] {display: none !important;}
+    [class*="profilePreview"] {display: none !important;}
+    [class*="profileImage"] {display: none !important;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
