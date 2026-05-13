@@ -20,7 +20,25 @@ st.set_page_config(
     page_icon="🎓",
     layout="centered"
 )
-
+# Streamlit Cloudの管理ボタン・デバッグ要素を非表示にする
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display: none !important;}
+    [data-testid="stToolbar"] {visibility: hidden !important;}
+    [data-testid="stDecoration"] {visibility: hidden !important;}
+    [data-testid="stStatusWidget"] {visibility: hidden !important;}
+    [data-testid="manage-app-button"] {display: none !important;}
+    .viewerBadge_container__1QSob {display: none !important;}
+    .styles_viewerBadge__1yB5_ {display: none !important;}
+    .viewerBadge_link__1S137 {display: none !important;}
+    .viewerBadge_text__1JaDK {display: none !important;}
+    iframe[title="streamlitApp"] {display: none !important;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # NGワード設定
 BLOCK_WORDS_STRICT = [
     "氏名", "名前", "本名", "住所", "電話番号", "メールアドレス",
