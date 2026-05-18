@@ -1,8 +1,9 @@
 import streamlit as st
 import os
+import time
 from dotenv import load_dotenv
 from openai import OpenAI
-from anthropic import Anthropic
+from anthropic import Anthropic, APIError, RateLimitError
 import google.generativeai as genai
 import json
 from datetime import datetime, timezone, timedelta
@@ -399,16 +400,33 @@ def answer_question(question, category):
         return response.text
     else:  # Claude
         model = DEFAULT_MODEL_CLAUDE
-        response = anthropic_client.messages.create(
-            model=model,
-            max_tokens=2000,
-            temperature=0.7,
-            system=system_prompt,
-            messages=[
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        return response.content[0].text
+        # レート制限対策：最大3回までリトライ
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = anthropic_client.messages.create(
+                    model=model,
+                    max_tokens=2000,
+                    temperature=0.7,
+                    system=system_prompt,
+                    messages=[
+                        {"role": "user", "content": user_prompt}
+                    ]
+                )
+                return response.content[0].text
+            except RateLimitError as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1秒、2秒、4秒と待つ
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    return "申し訳ありません。現在アクセスが集中しています。少し時間をおいてから再度お試しください。"
+            except APIError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(1)
+                    continue
+                else:
+                    return "申し訳ありません。一時的なエラーが発生しました。再度お試しください。"
 
 # 練習問題生成関数（5択2正解形式）
 def generate_practice_problem(topic, difficulty, num_problems):
